@@ -12,6 +12,7 @@ async def create_task(
     chat_id: int,
     description: str | None = None,
     assignee_id: int | None = None,
+    assignee_username: str | None = None,
     priority: Priority = Priority.MEDIUM,
     items_text: list[str] | None = None,
 ) -> Task:
@@ -20,6 +21,7 @@ async def create_task(
         description=description,
         author_id=author_id,
         assignee_id=assignee_id,
+        assignee_username=assignee_username,
         chat_id=chat_id,
         status=TaskStatus.CREATED,
         priority=priority,
@@ -79,6 +81,20 @@ async def toggle_task_item(session: AsyncSession, item_id: int) -> TaskItem | No
     await session.commit()
     await session.refresh(item)
     return item
+
+
+async def get_pending_tasks_by_username(session: AsyncSession, username: str) -> list[Task]:
+    """Find tasks that are unassigned and have matching assignee_username."""
+    result = await session.execute(
+        select(Task)
+        .options(joinedload(Task.author), joinedload(Task.assignee), joinedload(Task.items))
+        .where(
+            Task.assignee_id.is_(None),
+            Task.assignee_username == username,
+            Task.status.in_([TaskStatus.CREATED, TaskStatus.IN_PROGRESS]),
+        )
+    )
+    return list(result.unique().scalars().all())
 
 
 async def update_task_message_id(session: AsyncSession, task_id: int, message_id: int) -> None:

@@ -109,6 +109,7 @@ async def cmd_task(message: Message, session: AsyncSession):
         chat_id=chat_id,
         description=description,
         assignee_id=assignee_id,
+        assignee_username=assignee_username if not assignee_id else None,
         priority=task_priority,
         items_text=checklist_items if checklist_items else None,
     )
@@ -117,4 +118,16 @@ async def cmd_task(message: Message, session: AsyncSession):
     keyboard = build_task_keyboard(task, user.id)
     sent = await message.answer(text_card, parse_mode="HTML", reply_markup=keyboard.as_markup())
     await update_task_message_id(session, task.id, sent.message_id)
+
+    # If assignee was not found in DB, show a deeplink to invite them
+    if assignee_username and not assignee_id:
+        bot_username = (await message.bot.me()).username
+        deep_link = f"https://t.me/{bot_username}?start=task_{task.id}"
+        await message.answer(
+            f"🔗 Исполнитель @{assignee_username} не зарегистрирован в боте.\n"
+            f"Отправьте ему эту ссылку для назначения задачи:\n"
+            f"<code>{deep_link}</code>",
+            parse_mode="HTML",
+        )
+
     logger.info(f"Task #{task.id} created successfully, message_id={sent.message_id}")

@@ -45,6 +45,7 @@ class Task(Base):
     description = Column(Text, nullable=True)
     author_id = Column(BigInteger, ForeignKey("users.id"), nullable=False)
     assignee_id = Column(BigInteger, ForeignKey("users.id"), nullable=True)
+    assignee_username = Column(String, nullable=True)
     chat_id = Column(BigInteger, nullable=False)
     message_id = Column(BigInteger, nullable=True)
     status = Column(Enum(TaskStatus), default=TaskStatus.CREATED, nullable=False)

@@ -15,6 +15,8 @@ def format_task_card(task: Task) -> str:
     assignee_text = "Не назначен"
     if task.assignee:
         assignee_text = f'<a href="tg://user?id={task.assignee_id}">{task.assignee.first_name}</a>'
+    elif task.assignee_username:
+        assignee_text = f"@{task.assignee_username} (ожидает регистрации)"
 
     lines = [
         f"📌 <b>ЗАДАЧА #{task.id}</b>",

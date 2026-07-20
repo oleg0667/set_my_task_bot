@@ -1,21 +1,35 @@
 import re
+import logging
 from aiogram import Router, F
 from aiogram.filters import CommandStart, CommandObject
 from aiogram.types import Message, CallbackQuery
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database.session import get_session
 from app.services.user_service import get_or_create_user
-from app.services.task_service import get_task_by_id, assign_task, update_task_message_id
+from app.services.task_service import (
+    get_task_by_id,
+    assign_task,
+    update_task_message_id,
+    get_pending_tasks_by_username,
+)
 from app.utils.formatters import format_task_card
 from app.keyboards.inline_task import build_task_keyboard
 
 router = Router()
+logger = logging.getLogger(__name__)
 
 
 @router.message(CommandStart())
 async def cmd_start(message: Message, command: CommandObject, session: AsyncSession):
     user = message.from_user
     await get_or_create_user(session, user.id, user.username, user.first_name)
+    # Check if there are pending tasks waiting for this user by username
+    if user.username:
+        pending = await get_pending_tasks_by_username(session, user.username)
+        for pending_task in pending:
+            if pending_task.assignee_id is None:
+                await assign_task(session, pending_task.id, user.id)
+                logger.info(f"Auto-assigned task #{pending_task.id} to @{user.username} (id={user.id})")
 
     args = command.args
     if args and args.startswith("task_"):
@@ -40,6 +54,7 @@ async def cmd_start(message: Message, command: CommandObject, session: AsyncSess
         "Используй команду /task чтобы создать новую задачу.\n"
         "Можно указать:\n"
         "• Текст задачи (первая строка — заголовок)\n"
-        "• Список пунктов через /task или строки с - или *\n"
-        "• Исполнителя через @username в тексте"
+        "• Список пунктов через - или *\n"
+        "• Исполнителя через @username\n"
+        "• Приоритет через !low, !medium, !high, !urgent"
     )
