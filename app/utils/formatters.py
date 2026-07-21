@@ -36,6 +36,8 @@ def format_task_card(task: Task) -> str:
         for item in task.items:
             if item.is_completed:
                 lines.append(f"[x] <s>{item.text}</s>")
+            elif item.is_failed:
+                lines.append(f"[✗] <s>{item.text}</s> (провалено)")
             else:
                 lines.append(f"[ ] {item.text}")
 
@@ -43,5 +45,35 @@ def format_task_card(task: Task) -> str:
         updated_str = task.updated_at.strftime("%Y-%m-%d %H:%M")
         lines.append("")
         lines.append(f"<i>Обновлено: {updated_str}</i>")
+
+    return "\n".join(lines)
+
+
+def format_task_list(tasks: list[Task], title: str = "Список задач") -> str:
+    """Compact list of tasks for /my_current_tasks and /my_task_status."""
+    if not tasks:
+        return f"<b>{title}</b>\n\nНет активных задач."
+
+    lines = [f"<b>{title}</b>\n"]
+    for task in tasks:
+        status_emoji = TASK_STATUS_EMOJI.get(task.status, "📌")
+        status_label = TASK_STATUS_LABEL.get(task.status, "Неизвестно")
+        priority_emoji = PRIORITY_EMOJI.get(task.priority, "⚪")
+
+        assignee_text = "Не назначен"
+        if task.assignee:
+            assignee_text = task.assignee.first_name
+        elif task.assignee_username:
+            assignee_text = f"@{task.assignee_username}"
+
+        lines.append(
+            f"#{task.id} {status_emoji} {task.title[:50]}"
+            f"{'…' if len(task.title) > 50 else ''}"
+        )
+        lines.append(
+            f"   Статус: {status_label}  {priority_emoji}"
+            f"  Исполнитель: {assignee_text}"
+        )
+        lines.append("")
 
     return "\n".join(lines)

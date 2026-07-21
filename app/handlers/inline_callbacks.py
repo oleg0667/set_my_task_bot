@@ -8,7 +8,8 @@ from app.services.task_service import (
     get_task_by_id,
     assign_task,
     update_task_status,
-    toggle_task_item,
+    complete_task_item,
+    fail_task_item,
     update_task_message_id,
 )
 from app.utils.formatters import format_task_card
@@ -35,44 +36,70 @@ async def handle_task_callback(
     action = callback_data.action
     is_author = task.author_id == user.id
     is_assignee = task.assignee_id == user.id
+    can_act = is_assignee or (task.assignee_id is None and is_author)
 
-    if action == "take":
-        # Anyone can take an unassigned task
-        if task.assignee_id is not None and not is_assignee:
-            await query.answer("❌ Задача уже назначена другому исполнителю.", show_alert=True)
+    if action == "next_status":
+        if not can_act:
+            await query.answer("❌ Вы не можете менять статус этой задачи.", show_alert=True)
             return
-        task = await assign_task(session, task.id, user.id)
-        await query.answer("✅ Задача взята в работу!")
+        if task.status == TaskStatus.CREATED:
+            # If unassigned, assign current user
+            if task.assignee_id is None:
+                task = await assign_task(session, task.id, user.id)
+            task = await update_task_status(session, task.id, TaskStatus.IN_PROGRESS)
+            await query.answer("✅ Задача принята в работу!")
+        elif task.status == TaskStatus.IN_PROGRESS:
+            task = await update_task_status(session, task.id, TaskStatus.COMPLETED)
+            await query.answer("✅ Задача успешно завершена!")
+        else:
+            await query.answer("❌ Невозможно изменить статус.", show_alert=True)
+            return
 
-    elif action == "toggle_item":
+    elif action == "fail":
+        if not can_act:
+            await query.answer("❌ Вы не можете менять статус этой задачи.", show_alert=True)
+            return
+        if task.status != TaskStatus.IN_PROGRESS:
+            await query.answer("❌ Задачу можно провалить только из статуса «В процессе».", show_alert=True)
+            return
+        task = await update_task_status(session, task.id, TaskStatus.FAILED)
+        await query.answer("❌ Задача провалена!")
+
+    elif action == "complete_item":
         if callback_data.item_id is None:
             await query.answer("❌ Пункт не указан.", show_alert=True)
             return
-        # Only assignee or author (if no assignee) can toggle items
-        if not is_assignee and not (task.assignee_id is None and is_author):
+        if not can_act:
             await query.answer("❌ Вы не можете изменять этот список.", show_alert=True)
             return
-        item = await toggle_task_item(session, callback_data.item_id)
+        item = await complete_task_item(session, callback_data.item_id)
         if item is None:
             await query.answer("❌ Пункт не найден.", show_alert=True)
             return
-        await query.answer("✅ Пункт обновлён.")
+        await query.answer("✅ Пункт выполнен!")
 
-    elif action == "complete":
-        # Only assignee or author (if no assignee) can complete
-        if not is_assignee and not (task.assignee_id is None and is_author):
-            await query.answer("❌ Вы не можете завершить эту задачу.", show_alert=True)
+    elif action == "fail_item":
+        if callback_data.item_id is None:
+            await query.answer("❌ Пункт не указан.", show_alert=True)
             return
-        task = await update_task_status(session, task.id, TaskStatus.COMPLETED)
-        await query.answer("✅ Задача завершена!")
+        if not can_act:
+            await query.answer("❌ Вы не можете изменять этот список.", show_alert=True)
+            return
+        item = await fail_task_item(session, callback_data.item_id)
+        if item is None:
+            await query.answer("❌ Пункт не найден.", show_alert=True)
+            return
+        await query.answer("❌ Пункт провален!")
+
+    elif action == "noop":
+        await query.answer()
 
     elif action == "cancel":
-        # Only author can cancel
         if not is_author:
             await query.answer("❌ Только автор может отменить задачу.", show_alert=True)
             return
         task = await update_task_status(session, task.id, TaskStatus.CANCELLED)
-        await query.answer("❌ Задача отменена.")
+        await query.answer("🚫 Задача отменена.")
 
     else:
         await query.answer("❌ Неизвестное действие.", show_alert=True)

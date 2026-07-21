@@ -4,52 +4,82 @@ from app.database.models import Task, TaskStatus, TaskItem
 
 
 class TaskCallback(CallbackData, prefix="task"):
-    action: str  # take, complete, cancel, toggle_item
+    action: str  # next_status, fail, cancel, complete_item, fail_item, noop
     task_id: int
     item_id: int | None = None
 
 
 def build_task_keyboard(task: Task, user_id: int) -> InlineKeyboardBuilder:
+    from aiogram.utils.keyboard import InlineKeyboardButton
+
     builder = InlineKeyboardBuilder()
 
     is_author = task.author_id == user_id
     is_assignee = task.assignee_id == user_id
+    can_act = is_assignee or (task.assignee_id is None and is_author)
 
-    # Only show action buttons for CREATED or IN_PROGRESS status
     if task.status in (TaskStatus.CREATED, TaskStatus.IN_PROGRESS):
-        # "Take Task" button — for unassigned tasks or if assignee clicks
-        if task.assignee_id is None or (
-            task.assignee_id == user_id and task.status == TaskStatus.CREATED
-        ):
-            builder.button(
-                text="🚀 Взять в работу",
-                callback_data=TaskCallback(action="take", task_id=task.id),
+        # Progress row: single button or two buttons
+        if can_act and task.status == TaskStatus.CREATED:
+            builder.row(
+                InlineKeyboardButton(
+                    text="🚀 Принять в работу",
+                    callback_data=TaskCallback(action="next_status", task_id=task.id).pack(),
+                )
             )
-
-        # Checklist item buttons
-        for item in task.items:
-            item_text = f"{'☑️' if item.is_completed else '⬜️'} {item.text}"
-            builder.button(
-                text=item_text,
-                callback_data=TaskCallback(
-                    action="toggle_item", task_id=task.id, item_id=item.id
+        elif can_act and task.status == TaskStatus.IN_PROGRESS:
+            builder.row(
+                InlineKeyboardButton(
+                    text="✅ Завершить",
+                    callback_data=TaskCallback(action="next_status", task_id=task.id).pack(),
+                ),
+                InlineKeyboardButton(
+                    text="❌ Провалено",
+                    callback_data=TaskCallback(action="fail", task_id=task.id).pack(),
                 ),
             )
 
-        # Complete button (only assignee or author if no assignee)
-        if is_assignee or (task.assignee_id is None and is_author):
-            builder.button(
-                text="✅ Завершить",
-                callback_data=TaskCallback(action="complete", task_id=task.id),
-            )
+        # Checklist items — each unresolved item gets ✅ / ❌ buttons
+        if can_act:
+            for item in task.items:
+                if item.is_completed:
+                    builder.row(
+                        InlineKeyboardButton(
+                            text=f"☑️ {item.text[:35]}",
+                            callback_data=TaskCallback(action="noop", task_id=task.id).pack(),
+                        )
+                    )
+                elif item.is_failed:
+                    builder.row(
+                        InlineKeyboardButton(
+                            text=f"❌ {item.text[:35]}",
+                            callback_data=TaskCallback(action="noop", task_id=task.id).pack(),
+                        )
+                    )
+                else:
+                    # Two buttons side by side: ✅ and ❌
+                    builder.row(
+                        InlineKeyboardButton(
+                            text=f"✅ {item.text[:20]}",
+                            callback_data=TaskCallback(
+                                action="complete_item", task_id=task.id, item_id=item.id
+                            ).pack(),
+                        ),
+                        InlineKeyboardButton(
+                            text=f"❌ {item.text[:20]}",
+                            callback_data=TaskCallback(
+                                action="fail_item", task_id=task.id, item_id=item.id
+                            ).pack(),
+                        ),
+                    )
 
         # Cancel button (only author)
         if is_author:
-            builder.button(
-                text="❌ Отменить",
-                callback_data=TaskCallback(action="cancel", task_id=task.id),
+            builder.row(
+                InlineKeyboardButton(
+                    text="🚫 Отменить",
+                    callback_data=TaskCallback(action="cancel", task_id=task.id).pack(),
+                )
             )
-
-    builder.adjust(1)
 
     return builder

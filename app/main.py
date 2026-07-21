@@ -7,7 +7,7 @@ from aiogram.client.session.aiohttp import AiohttpSession
 from aiogram.types import TelegramObject
 from app.config import settings
 from app.database.session import async_session_factory, init_db
-from app.handlers import start, tasks, inline_callbacks, group_handlers
+from app.handlers import start, tasks, inline_callbacks, group_handlers, task_commands
 
 logging.basicConfig(level=logging.INFO, stream=sys.stdout)
 logger = logging.getLogger(__name__)
@@ -58,6 +58,7 @@ async def main():
     dp.include_router(tasks.router)
     dp.include_router(inline_callbacks.router)
     dp.include_router(group_handlers.router)
+    dp.include_router(task_commands.router)
 
     logger.info("Starting polling...")
     try:

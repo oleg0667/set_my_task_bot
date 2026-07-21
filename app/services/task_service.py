@@ -83,6 +83,32 @@ async def toggle_task_item(session: AsyncSession, item_id: int) -> TaskItem | No
     return item
 
 
+async def complete_task_item(session: AsyncSession, item_id: int) -> TaskItem | None:
+    """Mark a checklist item as completed."""
+    result = await session.execute(select(TaskItem).where(TaskItem.id == item_id))
+    item = result.scalar_one_or_none()
+    if item is None:
+        return None
+    item.is_completed = True
+    item.is_failed = False
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
+async def fail_task_item(session: AsyncSession, item_id: int) -> TaskItem | None:
+    """Mark a checklist item as failed."""
+    result = await session.execute(select(TaskItem).where(TaskItem.id == item_id))
+    item = result.scalar_one_or_none()
+    if item is None:
+        return None
+    item.is_failed = True
+    item.is_completed = False
+    await session.commit()
+    await session.refresh(item)
+    return item
+
+
 async def get_pending_tasks_by_username(session: AsyncSession, username: str) -> list[Task]:
     """Find tasks that are unassigned and have matching assignee_username."""
     result = await session.execute(
@@ -93,6 +119,48 @@ async def get_pending_tasks_by_username(session: AsyncSession, username: str) ->
             Task.assignee_username == username,
             Task.status.in_([TaskStatus.CREATED, TaskStatus.IN_PROGRESS]),
         )
+    )
+    return list(result.unique().scalars().all())
+
+
+async def get_tasks_by_assignee(session: AsyncSession, assignee_id: int) -> list[Task]:
+    """Get all active tasks assigned to a specific user."""
+    result = await session.execute(
+        select(Task)
+        .options(joinedload(Task.author), joinedload(Task.assignee), joinedload(Task.items))
+        .where(
+            Task.assignee_id == assignee_id,
+            Task.status.in_([TaskStatus.CREATED, TaskStatus.IN_PROGRESS]),
+        )
+        .order_by(Task.created_at.desc())
+    )
+    return list(result.unique().scalars().all())
+
+
+async def get_tasks_by_author(session: AsyncSession, author_id: int) -> list[Task]:
+    """Get all active tasks created by a specific user."""
+    result = await session.execute(
+        select(Task)
+        .options(joinedload(Task.author), joinedload(Task.assignee), joinedload(Task.items))
+        .where(
+            Task.author_id == author_id,
+            Task.status.in_([TaskStatus.CREATED, TaskStatus.IN_PROGRESS]),
+        )
+        .order_by(Task.created_at.desc())
+    )
+    return list(result.unique().scalars().all())
+
+
+async def get_tasks_by_chat(session: AsyncSession, chat_id: int) -> list[Task]:
+    """Get all active tasks in a specific chat/group."""
+    result = await session.execute(
+        select(Task)
+        .options(joinedload(Task.author), joinedload(Task.assignee), joinedload(Task.items))
+        .where(
+            Task.chat_id == chat_id,
+            Task.status.in_([TaskStatus.CREATED, TaskStatus.IN_PROGRESS]),
+        )
+        .order_by(Task.created_at.desc())
     )
     return list(result.unique().scalars().all())
 

@@ -5,13 +5,15 @@ TASK_STATUS_EMOJI = {
     TaskStatus.CREATED: "📌",
     TaskStatus.IN_PROGRESS: "🚗",
     TaskStatus.COMPLETED: "✅",
-    TaskStatus.CANCELLED: "❌",
+    TaskStatus.FAILED: "❌",
+    TaskStatus.CANCELLED: "🚫",
 }
 
 TASK_STATUS_LABEL = {
     TaskStatus.CREATED: "Создана",
     TaskStatus.IN_PROGRESS: "В процессе",
     TaskStatus.COMPLETED: "Завершена",
+    TaskStatus.FAILED: "Провалена",
     TaskStatus.CANCELLED: "Отменена",
 }
 

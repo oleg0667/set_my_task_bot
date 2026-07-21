@@ -15,6 +15,7 @@ class TaskStatus(str, enum.Enum):
     CREATED = "CREATED"
     IN_PROGRESS = "IN_PROGRESS"
     COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
     CANCELLED = "CANCELLED"
 
 
@@ -66,5 +67,6 @@ class TaskItem(Base):
     task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False)
     text = Column(String, nullable=False)
     is_completed = Column(Boolean, default=False, nullable=False)
+    is_failed = Column(Boolean, default=False, nullable=False)
 
     task = relationship("Task", back_populates="items")
